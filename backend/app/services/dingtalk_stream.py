@@ -54,7 +54,7 @@ class DailyReportChatbotHandler(ChatbotHandler):
         data = message.data if hasattr(message, 'data') else {}
         if not data:
             print("[DingTalk Stream] Empty data in callback message")
-            return AckMessage.STATUS_OK
+            return AckMessage.STATUS_OK, ""
 
         print(f"[DingTalk Stream] Message data: {str(data)[:200]}")
 
@@ -63,7 +63,7 @@ class DailyReportChatbotHandler(ChatbotHandler):
             chatbot_message = ChatbotMessage.from_dict(data)
         except Exception as e:
             print(f"[DingTalk Stream] Failed to parse ChatbotMessage: {e}")
-            return AckMessage.STATUS_OK
+            return AckMessage.STATUS_OK, ""
 
         # 处理消息类型：text 或 richText
         text_content = ""
@@ -90,11 +90,11 @@ class DailyReportChatbotHandler(ChatbotHandler):
                 print(f"[DingTalk Stream] Failed to extract richText: {e}")
         else:
             print(f"[DingTalk Stream] Ignored non-text message: {msg_type}")
-            return AckMessage.STATUS_OK
+            return AckMessage.STATUS_OK, ""
 
         if not text_content:
             print("[DingTalk Stream] Empty text content, ignored")
-            return AckMessage.STATUS_OK
+            return AckMessage.STATUS_OK, ""
 
         print(f"[DingTalk Stream] Text content: {text_content[:100]}...")
 
@@ -129,15 +129,16 @@ class DailyReportChatbotHandler(ChatbotHandler):
                 print("[DingTalk Stream] Template sent successfully")
             except Exception as e:
                 print(f"[DingTalk Stream] Template reply failed: {e}")
-            return AckMessage.STATUS_OK
+            return AckMessage.STATUS_OK, ""
 
         if not conversation_id or not sender_staff_id:
             print(f"[DingTalk Stream] Missing conversation_id or sender_staff_id, ignored")
-            return AckMessage.STATUS_OK
+            return AckMessage.STATUS_OK, ""
 
         # 调用消息处理器
+        reply = None
         try:
-            handle_incoming_message(
+            reply = handle_incoming_message(
                 text_content=text_content,
                 conversation_id=conversation_id,
                 sender_staff_id=sender_staff_id,
@@ -150,17 +151,18 @@ class DailyReportChatbotHandler(ChatbotHandler):
             import traceback
             traceback.print_exc()
 
-        # 发送确认回复
-        try:
-            reply_text = "OK"
-            self.reply_text(reply_text, chatbot_message)
-            print("[DingTalk Stream] Reply sent successfully")
-        except Exception as e:
-            print(f"[DingTalk Stream] Reply failed: {e}")
-            import traceback
-            traceback.print_exc()
+        # 发送确认回复（如果消息处理器有返回内容）
+        if reply:
+            try:
+                self.reply_text(reply, chatbot_message)
+                print("[DingTalk Stream] Reply sent successfully")
+            except Exception as e:
+                print(f"[DingTalk Stream] Reply failed: {e}")
+                import traceback
+                traceback.print_exc()
 
-        return AckMessage.STATUS_OK
+        # 返回空字符串作为 ack message，避免 raw_process 把回复内容通过 WebSocket 再次发送
+        return AckMessage.STATUS_OK, ""
 
 
 class DingTalkStreamManager:

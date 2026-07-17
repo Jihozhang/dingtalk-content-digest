@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import auth, reports, groups, stats, ai_summary, content_stats, digests
+from app.routers import auth, reports, groups, stats, ai_summary, content_stats, digests, templates, data_records
 from app.services.mongo_client import close_mongo_client
 from app.services.dingtalk_stream import get_stream_manager
 from app.services.message_handler import handle_incoming_message
@@ -70,6 +70,8 @@ app.include_router(stats.router, prefix="/api")
 app.include_router(ai_summary.router, prefix="/api")
 app.include_router(content_stats.router, prefix="/api")
 app.include_router(digests.router, prefix="/api")
+app.include_router(templates.router, prefix="/api")
+app.include_router(data_records.router, prefix="/api")
 
 
 @app.get("/")

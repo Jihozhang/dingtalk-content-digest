@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react'
 import {
-  Card,
   Form,
   Select,
   DatePicker,
@@ -13,9 +12,10 @@ import {
   Empty,
   Modal,
   Descriptions,
-  Badge,
   Typography,
   Divider,
+  Row,
+  Col,
 } from 'antd'
 import {
   RobotOutlined,
@@ -24,8 +24,12 @@ import {
   DeleteOutlined,
   EyeOutlined,
   CloudOutlined,
+  ThunderboltOutlined,
+  BranchesOutlined,
+  InboxOutlined,
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
+import '../styles/design-system.css'
 
 const { RangePicker } = DatePicker
 const { Title, Text } = Typography
@@ -81,7 +85,6 @@ const AISummary: React.FC = () => {
   const [selectedTask, setSelectedTask] = useState<AISummaryTask | null>(null)
   const [applying, setApplying] = useState<string | null>(null)
 
-  // 加载群聊列表
   const loadGroups = async () => {
     try {
       const res = await fetch(`${API_BASE}/groups`, { headers: getHeaders() })
@@ -94,7 +97,6 @@ const AISummary: React.FC = () => {
     }
   }
 
-  // 加载任务列表
   const loadTasks = async () => {
     setLoading(true)
     try {
@@ -112,7 +114,6 @@ const AISummary: React.FC = () => {
     }
   }
 
-  // 轮询任务状态
   useEffect(() => {
     if (!pollingTaskId) return
 
@@ -146,7 +147,6 @@ const AISummary: React.FC = () => {
     loadTasks()
   }, [])
 
-  // 创建汇总任务
   const handleCreateTask = async (values: any) => {
     const [startDate, endDate] = values.dateRange
     const taskData = {
@@ -181,13 +181,11 @@ const AISummary: React.FC = () => {
     }
   }
 
-  // 查看任务详情
   const handleViewDetail = (task: AISummaryTask) => {
     setSelectedTask(task)
     setDetailModalVisible(true)
   }
 
-  // 入库
   const handleApply = async (taskId: string, indices?: number[]) => {
     setApplying(taskId)
     try {
@@ -211,7 +209,6 @@ const AISummary: React.FC = () => {
     }
   }
 
-  // 删除任务
   const handleDelete = async (taskId: string) => {
     Modal.confirm({
       title: '确认删除',
@@ -234,10 +231,10 @@ const AISummary: React.FC = () => {
   }
 
   const statusMap = {
-    pending: { color: 'default', text: '待处理' },
-    processing: { color: 'processing', text: '处理中' },
-    completed: { color: 'success', text: '已完成' },
-    failed: { color: 'error', text: '失败' },
+    pending: { color: 'default' as const, text: '待处理', icon: <InboxOutlined /> },
+    processing: { color: 'processing' as const, text: '处理中', icon: <ThunderboltOutlined /> },
+    completed: { color: 'success' as const, text: '已完成', icon: <CheckCircleOutlined /> },
+    failed: { color: 'error' as const, text: '失败', icon: <DeleteOutlined /> },
   }
 
   const columns = [
@@ -245,172 +242,233 @@ const AISummary: React.FC = () => {
       title: '任务名称',
       dataIndex: 'task_name',
       key: 'task_name',
-      render: (text: string, record: AISummaryTask) =>
-        text || `汇总任务 ${dayjs(record.created_at).format('MM-DD HH:mm')}`,
+      render: (text: string, record: AISummaryTask) => (
+        <div>
+          <div style={{ fontWeight: 600, color: '#1f2937' }}>
+            {text || `汇总任务 ${dayjs(record.created_at).format('MM-DD HH:mm')}`}
+          </div>
+          <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>
+            {record.conversation_id.slice(-8)}
+          </div>
+        </div>
+      ),
     },
     {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
+      width: 120,
       render: (status: string) => {
-        const map = statusMap[status as keyof typeof statusMap] || { color: 'default', text: status }
-        return <Badge status={map.color as any} text={map.text} />
+        const map = statusMap[status as keyof typeof statusMap] || { color: 'default', text: status, icon: null }
+        return (
+          <div className={`status-tag ${map.color === 'success' ? 'success' : map.color === 'error' ? 'error' : map.color === 'processing' ? 'info' : 'default'}`}>
+            {map.icon} {map.text}
+          </div>
+        )
       },
     },
     {
       title: '日期范围',
       key: 'date_range',
-      render: (_: any, record: AISummaryTask) =>
-        `${record.start_date} ~ ${record.end_date}`,
+      width: 180,
+      render: (_: any, record: AISummaryTask) => (
+        <span style={{ fontFamily: 'monospace', fontSize: 13, color: '#4b5563' }}>
+          {record.start_date} ~ {record.end_date}
+        </span>
+      ),
     },
     {
       title: '消息数',
       dataIndex: 'raw_message_count',
       key: 'raw_message_count',
+      width: 90,
+      align: 'center' as const,
       render: (count: number, record: AISummaryTask) =>
-        record.status === 'completed' ? count : '-',
+        record.status === 'completed' ? (
+          <Tag color="blue" style={{ fontWeight: 600 }}>{count}</Tag>
+        ) : (
+          <span style={{ color: '#9ca3af' }}>-</span>
+        ),
     },
     {
       title: '生成日报',
       key: 'report_count',
+      width: 90,
+      align: 'center' as const,
       render: (_: any, record: AISummaryTask) =>
-        record.status === 'completed' ? record.generated_reports.length : '-',
+        record.status === 'completed' ? (
+          <Tag color="green" style={{ fontWeight: 600 }}>{record.generated_reports.length}</Tag>
+        ) : (
+          <span style={{ color: '#9ca3af' }}>-</span>
+        ),
     },
     {
       title: '创建时间',
       dataIndex: 'created_at',
       key: 'created_at',
-      render: (text: string) => dayjs(text).format('MM-DD HH:mm'),
+      width: 140,
+      render: (text: string) => (
+        <span style={{ fontSize: 13, color: '#6b7280' }}>{dayjs(text).format('MM-DD HH:mm')}</span>
+      ),
     },
     {
       title: '操作',
       key: 'action',
+      width: 200,
       render: (_: any, record: AISummaryTask) => (
-        <Space>
-          <Button
-            type="text"
-            icon={<EyeOutlined />}
+        <Space size={4}>
+          <button
+            className="btn-action"
             onClick={() => handleViewDetail(record)}
             disabled={record.status !== 'completed'}
           >
-            查看
-          </Button>
+            <EyeOutlined /> 查看
+          </button>
           {record.status === 'completed' && (
-            <Button
-              type="text"
-              icon={<CheckCircleOutlined />}
+            <button
+              className="btn-action"
               onClick={() => handleApply(record._id)}
-              loading={applying === record._id}
+              disabled={applying === record._id}
             >
-              入库
-            </Button>
+              <CheckCircleOutlined /> 入库
+            </button>
           )}
-          <Button
-            type="text"
-            danger
-            icon={<DeleteOutlined />}
-            onClick={() => handleDelete(record._id)}
-          >
-            删除
-          </Button>
+          <button className="btn-action danger" onClick={() => handleDelete(record._id)}>
+            <DeleteOutlined /> 删除
+          </button>
         </Space>
       ),
     },
   ]
 
   return (
-    <div>
-      <Title level={4}>
-        <RobotOutlined /> AI 日报自动汇总
-      </Title>
-      <Text type="secondary">
-        选择群聊和日期范围，使用 DeepSeek AI 自动解析聊天记录并生成结构化日报
-      </Text>
+    <div className="animate-fade-in">
+      {/* 页面标题 */}
+      <div className="page-header">
+        <div>
+          <h2>
+            <RobotOutlined style={{ marginRight: 10, color: '#1677ff' }} />
+            AI 日报自动汇总
+          </h2>
+          <div className="subtitle">
+            选择群聊和日期范围，使用 DeepSeek AI 自动解析聊天记录并生成结构化日报
+          </div>
+        </div>
+      </div>
 
-      <Divider />
+      {/* 创建任务卡片 */}
+      <div className="content-card" style={{ marginBottom: 24 }}>
+        <div className="card-header">
+          <h3>
+            <CloudOutlined style={{ marginRight: 8, color: '#1677ff' }} />
+            创建汇总任务
+          </h3>
+        </div>
+        <div className="card-body">
+          <Form form={form} layout="vertical" onFinish={handleCreateTask}>
+            <Row gutter={16}>
+              <Col xs={24} md={8}>
+                <Form.Item
+                  name="conversation_id"
+                  label="选择群聊"
+                  rules={[{ required: true, message: '请选择群聊' }]}
+                >
+                  <Select
+                    placeholder="请选择要汇总的群聊"
+                    options={groups.map((g) => ({
+                      value: g.conversation_id,
+                      label: g.project_name ? `${g.name} (${g.project_name})` : g.name,
+                    }))}
+                    size="large"
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={8}>
+                <Form.Item
+                  name="dateRange"
+                  label="日期范围"
+                  rules={[{ required: true, message: '请选择日期范围' }]}
+                >
+                  <RangePicker style={{ width: '100%' }} size="large" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={8}>
+                <Form.Item name="task_name" label="任务名称（可选）">
+                  <Select
+                    placeholder="给任务起个名字（可选）"
+                    allowClear
+                    showSearch
+                    mode="tags"
+                    maxCount={1}
+                    tokenSeparators={[',']}
+                    size="large"
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Form.Item style={{ marginBottom: 0 }}>
+              <Button
+                type="primary"
+                icon={<ThunderboltOutlined />}
+                htmlType="submit"
+                loading={creating}
+                disabled={!!pollingTaskId}
+                size="large"
+                style={{ minWidth: 160 }}
+              >
+                {pollingTaskId ? '处理中...' : '开始 AI 汇总'}
+              </Button>
+              {pollingTaskId && (
+                <Text type="secondary" style={{ marginLeft: 16 }}>
+                  <Spin size="small" style={{ marginRight: 8 }} />
+                  正在解析聊天记录，请稍候...
+                </Text>
+              )}
+            </Form.Item>
+          </Form>
+        </div>
+      </div>
 
-      <Card title="创建汇总任务" style={{ marginBottom: 24 }}>
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleCreateTask}
-        >
-          <Form.Item
-            name="conversation_id"
-            label="选择群聊"
-            rules={[{ required: true, message: '请选择群聊' }]}
+      {/* 任务列表 */}
+      <div className="content-card">
+        <div className="card-header">
+          <h3>
+            <BranchesOutlined style={{ marginRight: 8, color: '#1677ff' }} />
+            汇总任务列表
+          </h3>
+          <Button
+            type="text"
+            icon={<ReloadOutlined />}
+            onClick={loadTasks}
+            loading={loading}
           >
-            <Select
-              placeholder="请选择要汇总的群聊"
-              options={groups.map((g) => ({
-                value: g.conversation_id,
-                label: g.project_name ? `${g.name} (${g.project_name})` : g.name,
-              }))}
-            />
-          </Form.Item>
-
-          <Form.Item
-            name="dateRange"
-            label="日期范围"
-            rules={[{ required: true, message: '请选择日期范围' }]}
-          >
-            <RangePicker style={{ width: '100%' }} />
-          </Form.Item>
-
-          <Form.Item name="task_name" label="任务名称（可选）">
-            <Select
-              placeholder="给任务起个名字（可选）"
-              allowClear
-              showSearch
-              mode="tags"
-              maxCount={1}
-              tokenSeparators={[',']}
-            />
-          </Form.Item>
-
-          <Form.Item>
-            <Button
-              type="primary"
-              icon={<CloudOutlined />}
-              htmlType="submit"
-              loading={creating}
-              disabled={!!pollingTaskId}
-            >
-              {pollingTaskId ? '处理中...' : '开始 AI 汇总'}
-            </Button>
-          </Form.Item>
-        </Form>
-      </Card>
-
-      <Card
-        title={
-          <Space>
-            <span>汇总任务列表</span>
-            <Button
-              type="text"
-              icon={<ReloadOutlined />}
-              onClick={loadTasks}
-              loading={loading}
-            />
-          </Space>
-        }
-      >
-        <Table
-          columns={columns}
-          dataSource={tasks}
-          rowKey="_id"
-          loading={loading}
-          pagination={{ pageSize: 10 }}
-          locale={{ emptyText: <Empty description="暂无汇总任务" /> }}
-        />
-      </Card>
+            刷新
+          </Button>
+        </div>
+        <div className="card-body" style={{ padding: 0 }}>
+          <Table
+            className="pro-table"
+            columns={columns}
+            dataSource={tasks}
+            rowKey="_id"
+            loading={loading}
+            pagination={{ pageSize: 10 }}
+            locale={{ emptyText: <Empty description="暂无汇总任务" /> }}
+          />
+        </div>
+      </div>
 
       {/* 详情弹窗 */}
       <Modal
-        title="AI 汇总结果"
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <RobotOutlined style={{ color: '#1677ff' }} />
+            <span>AI 汇总结果</span>
+          </div>
+        }
         open={detailModalVisible}
         onCancel={() => setDetailModalVisible(false)}
-        width={900}
+        width={960}
         footer={[
           <Button key="close" onClick={() => setDetailModalVisible(false)}>
             关闭
@@ -433,27 +491,30 @@ const AISummary: React.FC = () => {
       >
         {selectedTask && (
           <div>
-            <Descriptions size="small" column={2}>
+            <Descriptions size="small" column={2} bordered>
               <Descriptions.Item label="状态">
-                <Badge
-                  status={statusMap[selectedTask.status].color as any}
-                  text={statusMap[selectedTask.status].text}
-                />
+                <div className={`status-tag ${selectedTask.status === 'completed' ? 'success' : selectedTask.status === 'failed' ? 'error' : 'info'}`}>
+                  {statusMap[selectedTask.status].icon}
+                  {statusMap[selectedTask.status].text}
+                </div>
               </Descriptions.Item>
               <Descriptions.Item label="原始消息数">
-                {selectedTask.raw_message_count}
+                <Tag color="blue" style={{ fontWeight: 600 }}>{selectedTask.raw_message_count}</Tag>
               </Descriptions.Item>
               <Descriptions.Item label="日期范围">
-                {selectedTask.start_date} ~ {selectedTask.end_date}
+                <span style={{ fontFamily: 'monospace' }}>{selectedTask.start_date} ~ {selectedTask.end_date}</span>
               </Descriptions.Item>
               <Descriptions.Item label="生成日报数">
-                {selectedTask.generated_reports.length}
+                <Tag color="green" style={{ fontWeight: 600 }}>{selectedTask.generated_reports.length}</Tag>
               </Descriptions.Item>
             </Descriptions>
 
             <Divider />
 
-            <Title level={5}>AI 生成的日报</Title>
+            <Title level={5} style={{ marginBottom: 16 }}>
+              <CheckCircleOutlined style={{ marginRight: 8, color: '#52c41a' }} />
+              AI 生成的日报
+            </Title>
             {selectedTask.generated_reports.length === 0 ? (
               <Empty description="未生成日报" />
             ) : (
@@ -461,22 +522,52 @@ const AISummary: React.FC = () => {
                 dataSource={selectedTask.generated_reports.map((r, i) => ({ ...r, key: i }))}
                 pagination={false}
                 size="small"
+                className="pro-table"
                 columns={[
-                  { title: '员工', dataIndex: 'sender_name', key: 'sender_name' },
+                  {
+                    title: '员工',
+                    dataIndex: 'sender_name',
+                    key: 'sender_name',
+                    render: (name: string) => (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div
+                          style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: '50%',
+                            background: `hsl(${(name.charCodeAt(0) * 30) % 360}, 70%, 85%)`,
+                            color: `hsl(${(name.charCodeAt(0) * 30) % 360}, 70%, 35%)`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 12,
+                            fontWeight: 700,
+                          }}
+                        >
+                          {name.slice(0, 1).toUpperCase()}
+                        </div>
+                        <span style={{ fontWeight: 500 }}>{name}</span>
+                      </div>
+                    ),
+                  },
                   { title: '今日工作', dataIndex: 'today_work', key: 'today_work', ellipsis: true },
                   { title: '明日计划', dataIndex: 'tomorrow_plan', key: 'tomorrow_plan', ellipsis: true },
                   {
                     title: '工时',
                     dataIndex: 'work_hours',
                     key: 'work_hours',
-                    render: (v: number | null) => v ? `${v}h` : '-',
+                    width: 80,
+                    align: 'center' as const,
+                    render: (v: number | null) => v ? <Tag color="blue" style={{ fontWeight: 600 }}>{v}h</Tag> : '-',
                   },
                   {
                     title: '状态',
                     key: 'applied',
+                    width: 90,
+                    align: 'center' as const,
                     render: (_: any, record: AIReportItem) =>
                       record.applied ? (
-                        <Tag color="success">已入库</Tag>
+                        <Tag color="success" style={{ fontWeight: 600 }}>已入库</Tag>
                       ) : (
                         <Tag>未入库</Tag>
                       ),

@@ -1,16 +1,15 @@
-import React from 'react'
+import { FC } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/Layout'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
-import Reports from './pages/Reports'
+import Templates from './pages/Templates'
+import DataRecords from './pages/DataRecords'
 import Groups from './pages/Groups'
 import Stats from './pages/Stats'
-import ContentStats from './pages/ContentStats'
-import AISummary from './pages/AISummary'
-import Digests from './pages/Digests'
+import AIAnalysis from './pages/AIAnalysis'
 
-function App() {
+const App: FC = () => {
   const isAuthenticated = !!localStorage.getItem('token')
 
   return (
@@ -24,12 +23,11 @@ function App() {
               <Routes>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/reports" element={<Reports />} />
+                <Route path="/templates" element={<Templates />} />
+                <Route path="/data-records" element={<DataRecords />} />
                 <Route path="/groups" element={<Groups />} />
                 <Route path="/stats" element={<Stats />} />
-                <Route path="/content" element={<ContentStats />} />
-                <Route path="/ai-summary" element={<AISummary />} />
-                <Route path="/digests" element={<Digests />} />
+                <Route path="/ai-analysis" element={<AIAnalysis />} />
               </Routes>
             </Layout>
           ) : (

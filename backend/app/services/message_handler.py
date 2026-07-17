@@ -1,14 +1,16 @@
 from datetime import datetime
 from typing import Optional
+import asyncio
 
 from pymongo import ReturnDocument
 
-from app.services.report_parser import ReportParser
+from app.services.template_parser import get_template_parser
 from app.services.mongo_client import (
-    get_reports_collection,
+    get_data_records_collection,
     get_groups_collection,
     get_users_collection,
     get_messages_collection,
+    get_templates_collection,
 )
 
 
@@ -26,6 +28,8 @@ def ensure_group_and_user(conversation_id: str, sender_staff_id: str, sender_nam
             "updated_at": datetime.utcnow(),
             "member_count": 0,
             "is_active": True,
+            "template_ids": [],
+            "default_template_id": "",
         })
 
     # 确保用户记录存在
@@ -103,30 +107,165 @@ def store_message(
         return False
 
 
-def handle_incoming_message(text_content: str, conversation_id: str,
-                            sender_staff_id: str, sender_name: str, message_id: str):
-    """处理接收到的消息：解析日报并存储"""
+def handle_incoming_message(
+    text_content: str,
+    conversation_id: str,
+    sender_staff_id: str,
+    sender_name: str,
+    message_id: str,
+):
+    """
+    处理接收到的消息：
+    1. 保存原始消息到 messages
+    2. 尝试匹配模板
+    3. 统一保存到 data_records（所有消息都进数据管理）
+    4. 匹配模板的消息异步 AI 解析
+    5. 返回确认回复
+    """
+    # 1. 保存原始消息
+    store_message(
+        conversation_id=conversation_id,
+        sender_staff_id=sender_staff_id,
+        sender_name=sender_name,
+        text=text_content,
+        message_id=message_id,
+    )
+
+    # 2. 尝试匹配模板
+    parser = get_template_parser()
+    match_result = parser.match_template(text_content, conversation_id)
+
+    if not match_result:
+        # 未匹配模板：保存为 unmatched
+        try:
+            records_col = get_data_records_collection()
+            record_doc = {
+                "template_id": "",
+                "template_name": "未匹配模板",
+                "conversation_id": conversation_id,
+                "sender_staff_id": sender_staff_id,
+                "sender_name": sender_name,
+                "raw_content": text_content,
+                "parsed_data": {},
+                "parse_status": "unmatched",
+                "ai_parse_enabled": False,
+                "message_id": message_id,
+                "record_date": datetime.utcnow().strftime("%Y-%m-%d"),
+                "created_at": datetime.utcnow(),
+            }
+            records_col.insert_one(record_doc)
+            print(f"[MessageHandler] Unmatched message saved from {sender_name}")
+        except Exception as e:
+            print(f"[MessageHandler] Error saving unmatched record: {e}")
+        return None
+
+    # 3. 获取模板详情
+    templates_col = get_templates_collection()
     try:
-        # 解析日报
-        report = ReportParser.create_report(
-            text=text_content,
-            conversation_id=conversation_id,
-            sender_staff_id=sender_staff_id,
-            sender_name=sender_name,
-            message_id=message_id,
-        )
+        from bson import ObjectId
+        template_doc = templates_col.find_one({"_id": ObjectId(match_result.template_id)})
+    except Exception:
+        print(f"[MessageHandler] Failed to get template {match_result.template_id}")
+        return None
 
-        # 存储到 MongoDB
-        reports_col = get_reports_collection()
-        report_dict = report.model_dump()
-        report_dict["report_date"] = datetime.utcnow().strftime("%Y-%m-%d")
-        report_dict["created_at"] = datetime.utcnow()
-        reports_col.insert_one(report_dict)
+    if not template_doc:
+        return None
 
-        # 确保群聊与用户记录存在
-        ensure_group_and_user(conversation_id, sender_staff_id, sender_name)
+    from app.models.template import Template
+    template_doc["_id"] = str(template_doc["_id"])
+    template = Template(**template_doc)
 
-        print(f"[MessageHandler] Report saved from {sender_name} in group {conversation_id}")
+    # 4. 保存数据记录（pending 状态，等待解析）
+    try:
+        records_col = get_data_records_collection()
+        record_doc = {
+            "template_id": match_result.template_id,
+            "template_name": template.name,
+            "conversation_id": conversation_id,
+            "sender_staff_id": sender_staff_id,
+            "sender_name": sender_name,
+            "raw_content": text_content,
+            "parsed_data": {},
+            "parse_status": "pending",
+            "ai_parse_enabled": False,
+            "message_id": message_id,
+            "record_date": datetime.utcnow().strftime("%Y-%m-%d"),
+            "created_at": datetime.utcnow(),
+        }
+        result = records_col.insert_one(record_doc)
+        record_id = str(result.inserted_id)
+        print(f"[MessageHandler] Data record saved (pending) from {sender_name} using template '{template.name}'")
+
+        # 5. 触发异步 AI 解析
+        asyncio.create_task(_async_parse_record(record_id, text_content, template))
 
     except Exception as e:
-        print(f"[MessageHandler] Error handling message: {e}")
+        print(f"[MessageHandler] Error saving data record: {e}")
+
+    # 6. 构建回复（简洁确认）
+    return "已记录"
+
+
+async def _async_parse_record(record_id: str, text_content: str, template):
+    """异步解析数据记录"""
+    parser = get_template_parser()
+    records_col = get_data_records_collection()
+
+    try:
+        # 执行 AI 解析（在线程池中运行阻塞调用）
+        parsed_data = await asyncio.to_thread(parser.parse_with_template, text_content, template)
+
+        # 更新记录状态
+        from bson import ObjectId
+        records_col.update_one(
+            {"_id": ObjectId(record_id)},
+            {"$set": {
+                "parsed_data": parsed_data,
+                "parse_status": "success" if parsed_data else "failed",
+                "ai_parse_enabled": True,
+                "updated_at": datetime.utcnow(),
+            }}
+        )
+        print(f"[MessageHandler] Async parse success for record {record_id}")
+    except Exception as e:
+        # 解析失败
+        from bson import ObjectId
+        records_col.update_one(
+            {"_id": ObjectId(record_id)},
+            {"$set": {
+                "parse_status": "failed",
+                "error_message": str(e),
+                "updated_at": datetime.utcnow(),
+            }}
+        )
+        print(f"[MessageHandler] Async parse failed for record {record_id}: {e}")
+
+
+def save_data_record(
+    template_id: str,
+    template_name: str,
+    conversation_id: str,
+    sender_staff_id: str,
+    sender_name: str,
+    raw_content: str,
+    parsed_data: dict,
+    parse_status: str = "success",
+    message_id: Optional[str] = None,
+):
+    """手动保存数据记录"""
+    records_col = get_data_records_collection()
+    record_doc = {
+        "template_id": template_id,
+        "template_name": template_name,
+        "conversation_id": conversation_id,
+        "sender_staff_id": sender_staff_id,
+        "sender_name": sender_name,
+        "raw_content": raw_content,
+        "parsed_data": parsed_data,
+        "parse_status": parse_status,
+        "message_id": message_id,
+        "record_date": datetime.utcnow().strftime("%Y-%m-%d"),
+        "created_at": datetime.utcnow(),
+    }
+    result = records_col.insert_one(record_doc)
+    return str(result.inserted_id)

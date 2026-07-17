@@ -36,10 +36,25 @@ def _ensure_indexes(db: Database):
     reports.create_index([("report_date", DESCENDING)])
     reports.create_index([("parse_status", ASCENDING)])
 
-    # groups 集合索引
+    # data_records 集合索引（替代 reports，通用数据记录）
+    data_records: Collection = db.data_records
+    data_records.create_index([("conversation_id", ASCENDING), ("record_date", DESCENDING)])
+    data_records.create_index([("template_id", ASCENDING), ("record_date", DESCENDING)])
+    data_records.create_index([("sender_staff_id", ASCENDING), ("record_date", DESCENDING)])
+    data_records.create_index([("record_date", DESCENDING)])
+    data_records.create_index([("parse_status", ASCENDING)])
+
+    # templates 集合索引（问卷模板）
+    templates: Collection = db.templates
+    templates.create_index([("is_active", ASCENDING)])
+    templates.create_index([("conversation_ids", ASCENDING)])
+    templates.create_index([("created_at", DESCENDING)])
+
+    # groups 集合索引（增加 template_ids 字段）
     groups: Collection = db.groups
     groups.create_index([("conversation_id", ASCENDING)], unique=True)
     groups.create_index([("project_id", ASCENDING)])
+    groups.create_index([("template_ids", ASCENDING)])
 
     # users 集合索引
     users: Collection = db.users
@@ -73,8 +88,17 @@ def close_mongo_client():
 
 
 # 便捷获取集合的函数
+def get_data_records_collection() -> Collection:
+    return get_db().data_records
+
+
+def get_templates_collection() -> Collection:
+    return get_db().templates
+
+
 def get_reports_collection() -> Collection:
-    return get_db().reports
+    """兼容旧代码，返回 data_records 集合"""
+    return get_db().data_records
 
 
 def get_groups_collection() -> Collection:

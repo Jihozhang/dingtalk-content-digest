@@ -194,13 +194,13 @@ export interface OverviewStats {
   total_users: number
 }
 
-export const getDailyStats = (params?: { start_date?: string; end_date?: string }) =>
+export const getDailyStats = (params?: { start_date?: string; end_date?: string; template_id?: string }) =>
   api.get<DailyStats[]>('/stats/daily', { params })
 
-export const getGroupStats = () =>
-  api.get<GroupStats[]>('/stats/groups')
+export const getGroupStats = (params?: { template_id?: string }) =>
+  api.get<GroupStats[]>('/stats/groups', { params })
 
-export const getUserStats = (params?: { conversation_id?: string }) =>
+export const getUserStats = (params?: { conversation_id?: string; template_id?: string }) =>
   api.get<UserStats[]>('/stats/users', { params })
 
 export const getOverviewStats = () =>

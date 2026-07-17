@@ -15,13 +15,24 @@ import {
   Typography,
   Popconfirm,
   Alert,
+  Empty,
+  Badge,
+  Divider,
 } from 'antd'
 import {
   PlusOutlined,
   ReloadOutlined,
   DeleteOutlined,
   SendOutlined,
-  ClockCircleOutlined,
+  BulbOutlined,
+  ThunderboltOutlined,
+  CalendarOutlined,
+  FileTextOutlined,
+  CheckCircleOutlined,
+  WarningOutlined,
+  BookOutlined,
+  BarChartOutlined,
+  FireOutlined,
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import {
@@ -38,15 +49,16 @@ import {
   type SchedulerStatus,
   type Group,
 } from '../api'
+import '../styles/design-system.css'
 
 const { RangePicker } = DatePicker
 const { Paragraph, Text } = Typography
 
-const statusMap: Record<string, { color: string; text: string }> = {
-  pending: { color: 'default', text: '等待中' },
-  processing: { color: 'processing', text: '生成中' },
-  completed: { color: 'success', text: '已完成' },
-  failed: { color: 'error', text: '失败' },
+const statusMap: Record<string, { color: string; text: string; badge: string }> = {
+  pending: { color: 'default', text: '等待中', badge: 'default' },
+  processing: { color: 'processing', text: '生成中', badge: 'processing' },
+  completed: { color: 'success', text: '已完成', badge: 'success' },
+  failed: { color: 'error', text: '失败', badge: 'error' },
 }
 
 const periodMap: Record<string, string> = {
@@ -172,25 +184,38 @@ const DigestsPage: React.FC = () => {
   }
 
   const columns = [
-    { title: '群聊', dataIndex: 'group_name', render: (v: string) => v || '-' },
+    {
+      title: '群聊',
+      dataIndex: 'group_name',
+      render: (v: string) => <span style={{ fontWeight: 500 }}>{v || '-'}</span>,
+    },
     {
       title: '周期',
       dataIndex: 'period_type',
       width: 90,
-      render: (v: string) => periodMap[v] || v,
+      render: (v: string) => (
+        <Tag color={v === 'daily' ? 'blue' : v === 'weekly' ? 'purple' : 'default'} style={{ fontWeight: 500 }}>
+          {periodMap[v] || v}
+        </Tag>
+      ),
     },
     {
       title: '时间范围',
       width: 200,
-      render: (_: any, r: Digest) => `${r.start_date} ~ ${r.end_date}`,
+      render: (_: any, r: Digest) => (
+        <span style={{ fontFamily: 'monospace', fontSize: 13, color: '#4b5563' }}>
+          {r.start_date} ~ {r.end_date}
+        </span>
+      ),
     },
     {
       title: '状态',
       dataIndex: 'status',
       width: 100,
+      align: 'center' as const,
       render: (v: string) => {
-        const s = statusMap[v] || { color: 'default', text: v }
-        return <Tag color={s.color}>{s.text}</Tag>
+        const s = statusMap[v] || { color: 'default', text: v, badge: 'default' }
+        return <Badge status={s.badge as any} text={s.text} />
       },
     },
     { title: '消息数', dataIndex: 'raw_message_count', width: 90, align: 'center' as const },
@@ -199,35 +224,37 @@ const DigestsPage: React.FC = () => {
       dataIndex: 'pushed',
       width: 80,
       align: 'center' as const,
-      render: (v: boolean) => (v ? <Tag color="green">是</Tag> : '-'),
+      render: (v: boolean) =>
+        v ? <Tag color="success" style={{ fontWeight: 600 }}>已推送</Tag> : <span style={{ color: '#9ca3af' }}>-</span>,
     },
     {
       title: '创建时间',
       dataIndex: 'created_at',
       width: 170,
-      render: (v: string) => (v ? dayjs(v).format('YYYY-MM-DD HH:mm') : '-'),
+      render: (v: string) => (
+        <span style={{ fontSize: 13, color: '#6b7280' }}>{v ? dayjs(v).format('YYYY-MM-DD HH:mm') : '-'}</span>
+      ),
     },
     {
       title: '操作',
       width: 220,
+      align: 'center' as const,
       render: (_: any, r: Digest) => (
-        <Space size="small">
-          <Button type="link" size="small" onClick={() => openDetail(r._id)}>
-            详情
-          </Button>
-          <Button
-            type="link"
-            size="small"
-            icon={<SendOutlined />}
-            disabled={r.status !== 'completed'}
+        <Space size={4}>
+          <button className="btn-action" onClick={() => openDetail(r._id)}>
+            <FileTextOutlined /> 详情
+          </button>
+          <button
+            className="btn-action"
             onClick={() => handlePush(r._id)}
+            disabled={r.status !== 'completed'}
           >
-            回推
-          </Button>
+            <SendOutlined /> 回推
+          </button>
           <Popconfirm title="确认删除该汇总？" onConfirm={() => handleDelete(r._id)}>
-            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
-              删除
-            </Button>
+            <button className="btn-action danger">
+              <DeleteOutlined /> 删除
+            </button>
           </Popconfirm>
         </Space>
       ),
@@ -235,26 +262,24 @@ const DigestsPage: React.FC = () => {
   ]
 
   return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 16,
-          flexWrap: 'wrap',
-          gap: 12,
-        }}
-      >
-        <h2 style={{ margin: 0 }}>智能汇总</h2>
+    <div className="animate-fade-in">
+      {/* 页面标题 */}
+      <div className="page-header">
+        <div>
+          <h2>
+            <BulbOutlined style={{ marginRight: 10, color: '#1677ff' }} />
+            智能汇总
+          </h2>
+          <div className="subtitle">定时生成日报/周报摘要，支持手动触发和自动回推</div>
+        </div>
         <Space wrap>
-          <Button icon={<ClockCircleOutlined />} onClick={handleRunDaily}>
+          <Button icon={<CalendarOutlined />} onClick={handleRunDaily}>
             立即生成每日
           </Button>
-          <Button icon={<ClockCircleOutlined />} onClick={handleRunWeekly}>
+          <Button icon={<CalendarOutlined />} onClick={handleRunWeekly}>
             立即生成每周
           </Button>
-          <Button icon={<ReloadOutlined />} onClick={fetchDigests}>
+          <Button icon={<ReloadOutlined />} onClick={fetchDigests} loading={loading}>
             刷新
           </Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
@@ -263,46 +288,77 @@ const DigestsPage: React.FC = () => {
         </Space>
       </div>
 
+      {/* 调度器状态 */}
       {scheduler && (
         <Alert
           type={scheduler.running ? 'info' : 'warning'}
           showIcon
-          style={{ marginBottom: 16 }}
+          style={{ marginBottom: 24, borderRadius: 12 }}
+          icon={scheduler.running ? <ThunderboltOutlined /> : <WarningOutlined />}
           message={
-            scheduler.running
-              ? `调度器运行中 · ${scheduler.jobs
-                  .map(
-                    (j) =>
-                      `${j.id}${
-                        j.next_run_time
-                          ? ` (下次: ${dayjs(j.next_run_time).format('MM-DD HH:mm')})`
-                          : ''
-                      }`
-                  )
-                  .join(' | ')}`
-              : '调度器未运行（ENABLE_SCHEDULER=false 或未启动）'
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontWeight: 600 }}>
+                {scheduler.running ? '调度器运行中' : '调度器未运行'}
+              </span>
+              <Divider type="vertical" />
+              <span style={{ fontSize: 13, color: '#6b7280' }}>
+                {scheduler.running
+                  ? scheduler.jobs
+                      .map(
+                        (j) =>
+                          `${j.id}${
+                            j.next_run_time
+                              ? ` (下次: ${dayjs(j.next_run_time).format('MM-DD HH:mm')})`
+                              : ''
+                          }`
+                      )
+                      .join(' | ')
+                  : 'ENABLE_SCHEDULER=false 或未启动'}
+              </span>
+            </div>
           }
         />
       )}
 
-      <Card>
-        <Table
-          columns={columns}
-          dataSource={digests}
-          rowKey="_id"
-          loading={loading}
-          pagination={{ pageSize: 15 }}
-          size="small"
-        />
-      </Card>
+      {/* 汇总列表 */}
+      <div className="content-card">
+        <div className="card-header">
+          <h3>
+            <BookOutlined style={{ marginRight: 8, color: '#1677ff' }} />
+            汇总任务列表
+          </h3>
+          <span style={{ fontSize: 13, color: '#9ca3af' }}>
+            共 {digests.length} 条记录
+          </span>
+        </div>
+        <div className="card-body" style={{ padding: 0 }}>
+          <Table
+            className="pro-table"
+            columns={columns}
+            dataSource={digests}
+            rowKey="_id"
+            loading={loading}
+            pagination={{ pageSize: 15 }}
+            size="small"
+            locale={{ emptyText: <Empty description="暂无汇总任务" /> }}
+          />
+        </div>
+      </div>
 
+      {/* 创建弹窗 */}
       <Modal
-        title="手动创建汇总"
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <PlusOutlined style={{ color: '#1677ff' }} />
+            <span>手动创建汇总</span>
+          </div>
+        }
         open={createOpen}
         onOk={handleCreate}
         onCancel={() => setCreateOpen(false)}
         okText="创建"
         cancelText="取消"
+        width={560}
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item
@@ -312,6 +368,7 @@ const DigestsPage: React.FC = () => {
           >
             <Select
               placeholder="选择群聊"
+              size="large"
               options={groups.map((g) => ({ label: g.name, value: g.conversation_id }))}
             />
           </Form.Item>
@@ -320,10 +377,11 @@ const DigestsPage: React.FC = () => {
             label="时间范围"
             rules={[{ required: true, message: '请选择时间范围' }]}
           >
-            <RangePicker style={{ width: '100%' }} />
+            <RangePicker style={{ width: '100%' }} size="large" />
           </Form.Item>
           <Form.Item name="period_type" label="周期类型" initialValue="custom">
             <Select
+              size="large"
               options={[
                 { label: '自定义', value: 'custom' },
                 { label: '每日', value: 'daily' },
@@ -334,8 +392,14 @@ const DigestsPage: React.FC = () => {
         </Form>
       </Modal>
 
+      {/* 详情弹窗 */}
       <Modal
-        title="汇总详情"
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <FileTextOutlined style={{ color: '#1677ff' }} />
+            <span>汇总详情</span>
+          </div>
+        }
         open={detailOpen}
         onCancel={() => setDetailOpen(false)}
         footer={null}
@@ -346,10 +410,12 @@ const DigestsPage: React.FC = () => {
             <Descriptions column={2} size="small" bordered style={{ marginBottom: 16 }}>
               <Descriptions.Item label="群聊">{detail.group_name || '-'}</Descriptions.Item>
               <Descriptions.Item label="周期">
-                {periodMap[detail.period_type] || detail.period_type}
+                <Tag color={detail.period_type === 'daily' ? 'blue' : detail.period_type === 'weekly' ? 'purple' : 'default'}>
+                  {periodMap[detail.period_type] || detail.period_type}
+                </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="时间范围">
-                {detail.start_date} ~ {detail.end_date}
+                <span style={{ fontFamily: 'monospace' }}>{detail.start_date} ~ {detail.end_date}</span>
               </Descriptions.Item>
               <Descriptions.Item label="消息数">{detail.raw_message_count}</Descriptions.Item>
             </Descriptions>
@@ -358,20 +424,30 @@ const DigestsPage: React.FC = () => {
               <Alert
                 type="error"
                 showIcon
-                style={{ marginBottom: 16 }}
+                style={{ marginBottom: 16, borderRadius: 8 }}
                 message="生成失败"
                 description={detail.error_message || '未知错误'}
               />
             )}
 
             {detail.overview && (
-              <Card size="small" title="📊 整体概览" style={{ marginBottom: 12 }}>
-                <Paragraph style={{ margin: 0 }}>{detail.overview}</Paragraph>
+              <Card size="small" title={
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <BarChartOutlined style={{ color: '#1677ff' }} />
+                  <span>整体概览</span>
+                </div>
+              } style={{ marginBottom: 12, borderRadius: 12 }}>
+                <Paragraph style={{ margin: 0, lineHeight: 1.8 }}>{detail.overview}</Paragraph>
               </Card>
             )}
 
             {detail.hot_topics?.length > 0 && (
-              <Card size="small" title="🔥 热点话题" style={{ marginBottom: 12 }}>
+              <Card size="small" title={
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <FireOutlined style={{ color: '#fa8c16' }} />
+                  <span>热点话题</span>
+                </div>
+              } style={{ marginBottom: 12, borderRadius: 12 }}>
                 <List
                   dataSource={detail.hot_topics}
                   renderItem={(t) => (
@@ -384,7 +460,12 @@ const DigestsPage: React.FC = () => {
             )}
 
             {detail.todos?.length > 0 && (
-              <Card size="small" title="✅ 待办事项" style={{ marginBottom: 12 }}>
+              <Card size="small" title={
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <CheckCircleOutlined style={{ color: '#52c41a' }} />
+                  <span>待办事项</span>
+                </div>
+              } style={{ marginBottom: 12, borderRadius: 12 }}>
                 <List
                   dataSource={detail.todos}
                   renderItem={(t) => (
@@ -398,7 +479,12 @@ const DigestsPage: React.FC = () => {
             )}
 
             {detail.risks?.length > 0 && (
-              <Card size="small" title="⚠️ 风险 / 问题" style={{ marginBottom: 12 }}>
+              <Card size="small" title={
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <WarningOutlined style={{ color: '#ff4d4f' }} />
+                  <span>风险 / 问题</span>
+                </div>
+              } style={{ marginBottom: 12, borderRadius: 12 }}>
                 <List
                   dataSource={detail.risks}
                   renderItem={(r) => <List.Item>{r}</List.Item>}
@@ -407,7 +493,12 @@ const DigestsPage: React.FC = () => {
             )}
 
             {detail.key_conclusions?.length > 0 && (
-              <Card size="small" title="📌 关键结论">
+              <Card size="small" title={
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <BookOutlined style={{ color: '#722ed1' }} />
+                  <span>关键结论</span>
+                </div>
+              } style={{ borderRadius: 12 }}>
                 <List
                   dataSource={detail.key_conclusions}
                   renderItem={(k) => <List.Item>{k}</List.Item>}

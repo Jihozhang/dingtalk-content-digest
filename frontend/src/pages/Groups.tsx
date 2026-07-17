@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import {
   Table,
-  Card,
   Button,
   Space,
   Tag,
@@ -10,6 +9,10 @@ import {
   Input,
   message,
   Popconfirm,
+  Empty,
+  Badge,
+  Row,
+  Col,
 } from 'antd'
 import {
   PlusOutlined,
@@ -17,8 +20,10 @@ import {
   DeleteOutlined,
   ReloadOutlined,
   TeamOutlined,
+  GlobalOutlined,
 } from '@ant-design/icons'
 import { getGroups, createGroup, updateGroup, deleteGroup, type Group } from '../api'
+import '../styles/design-system.css'
 
 const GroupsPage: React.FC = () => {
   const [groups, setGroups] = useState<Group[]>([])
@@ -100,54 +105,98 @@ const GroupsPage: React.FC = () => {
       title: '群聊名称',
       dataIndex: 'name',
       render: (text: string, record: Group) => (
-        <Space>
-          <TeamOutlined />
-          <span>{text}</span>
-          {!record.is_active && <Tag color="red">已停用</Tag>}
-        </Space>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 10,
+              background: `hsl(${(record.conversation_id.charCodeAt(0) * 30) % 360}, 70%, 85%)`,
+              color: `hsl(${(record.conversation_id.charCodeAt(0) * 30) % 360}, 70%, 35%)`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 16,
+              fontWeight: 700,
+              flexShrink: 0,
+            }}
+          >
+            {text.slice(0, 1).toUpperCase()}
+          </div>
+          <div>
+            <div style={{ fontWeight: 600, color: '#1f2937' }}>{text}</div>
+            {!record.is_active && <Tag color="red" style={{ marginTop: 2 }}>已停用</Tag>}
+          </div>
+        </div>
       ),
     },
     {
       title: 'Conversation ID',
       dataIndex: 'conversation_id',
       ellipsis: true,
-      width: 200,
+      width: 220,
+      render: (id: string) => (
+        <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#6b7280' }}>{id}</span>
+      ),
     },
     {
       title: '关联项目',
       dataIndex: 'project_name',
-      render: (text: string | null) => text || '-',
+      render: (text: string | null) =>
+        text ? (
+          <Tag color="blue" style={{ fontWeight: 500 }}>{text}</Tag>
+        ) : (
+          <span style={{ color: '#9ca3af' }}>-</span>
+        ),
     },
     {
       title: '成员数',
       dataIndex: 'member_count',
-      width: 80,
+      width: 90,
       align: 'center' as const,
+      render: (v: number) => <Tag color="green" style={{ fontWeight: 600 }}>{v}</Tag>,
+    },
+    {
+      title: '状态',
+      dataIndex: 'is_active',
+      width: 90,
+      align: 'center' as const,
+      render: (v: boolean) =>
+        v ? (
+          <Badge status="success" text="正常" />
+        ) : (
+          <Badge status="error" text="停用" />
+        ),
     },
     {
       title: '创建时间',
       dataIndex: 'created_at',
       width: 170,
-      render: (text: string) => new Date(text).toLocaleString('zh-CN'),
+      render: (text: string) => (
+        <span style={{ fontSize: 13, color: '#6b7280' }}>
+          {new Date(text).toLocaleString('zh-CN')}
+        </span>
+      ),
     },
     {
       title: '操作',
       key: 'action',
       width: 150,
       fixed: 'right' as const,
+      align: 'center' as const,
       render: (_: any, record: Group) => (
-        <Space size="small">
-          <Button type="text" size="small" icon={<EditOutlined />} onClick={() => openEdit(record)}>
-            编辑
-          </Button>
+        <Space size={4}>
+          <button className="btn-action" onClick={() => openEdit(record)}>
+            <EditOutlined /> 编辑
+          </button>
           <Popconfirm
             title="确认停用"
             description="停用后该群聊的日报将不再被收集，是否继续？"
             onConfirm={() => handleDelete(record._id)}
           >
-            <Button type="text" danger size="small" icon={<DeleteOutlined />}>
-              停用
-            </Button>
+            <button className="btn-action danger">
+              <DeleteOutlined /> 停用
+            </button>
           </Popconfirm>
         </Space>
       ),
@@ -155,41 +204,72 @@ const GroupsPage: React.FC = () => {
   ]
 
   return (
-    <div>
-      <h2 style={{ marginBottom: 24 }}>群聊管理</h2>
-
-      <Card style={{ marginBottom: 16 }}>
+    <div className="animate-fade-in">
+      {/* 页面标题 */}
+      <div className="page-header">
+        <div>
+          <h2>
+            <TeamOutlined style={{ marginRight: 10, color: '#1677ff' }} />
+            群聊管理
+          </h2>
+          <div className="subtitle">管理已接入的钉钉群聊，配置关联项目</div>
+        </div>
         <Space>
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
             添加群聊
           </Button>
-          <Button icon={<ReloadOutlined />} onClick={fetchGroups}>
+          <Button icon={<ReloadOutlined />} onClick={fetchGroups} loading={loading}>
             刷新
           </Button>
         </Space>
-      </Card>
+      </div>
 
-      <Table
-        columns={columns}
-        dataSource={groups}
-        rowKey="_id"
-        loading={loading}
-        pagination={{ pageSize: 20 }}
-      />
+      {/* 数据表格 */}
+      <div className="content-card">
+        <div className="card-header">
+          <h3>
+            <GlobalOutlined style={{ marginRight: 8, color: '#1677ff' }} />
+            群聊列表
+          </h3>
+          <span style={{ fontSize: 13, color: '#9ca3af' }}>
+            共 {groups.length} 个群聊
+          </span>
+        </div>
+        <div className="card-body" style={{ padding: 0 }}>
+          <Table
+            className="pro-table"
+            columns={columns}
+            dataSource={groups}
+            rowKey="_id"
+            loading={loading}
+            pagination={{ pageSize: 20 }}
+            locale={{ emptyText: <Empty description="暂无群聊数据" /> }}
+          />
+        </div>
+      </div>
 
+      {/* 创建/编辑弹窗 */}
       <Modal
-        title={editingGroup ? '编辑群聊' : '添加群聊'}
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <TeamOutlined style={{ color: '#1677ff' }} />
+            <span>{editingGroup ? '编辑群聊' : '添加群聊'}</span>
+          </div>
+        }
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         onOk={() => form.submit()}
+        width={560}
+        okText="保存"
+        cancelText="取消"
       >
-        <Form form={form} layout="vertical" onFinish={handleSubmit}>
+        <Form form={form} layout="vertical" onFinish={handleSubmit} style={{ marginTop: 16 }}>
           <Form.Item
             name="name"
             label="群聊名称"
             rules={[{ required: true, message: '请输入群聊名称' }]}
           >
-            <Input placeholder="例如：项目A日报群" />
+            <Input placeholder="例如：项目A日报群" size="large" />
           </Form.Item>
           {!editingGroup && (
             <Form.Item
@@ -197,15 +277,21 @@ const GroupsPage: React.FC = () => {
               label="Conversation ID"
               rules={[{ required: true, message: '请输入 Conversation ID' }]}
             >
-              <Input placeholder="钉钉群聊的 conversation_id" />
+              <Input placeholder="钉钉群聊的 conversation_id" size="large" />
             </Form.Item>
           )}
-          <Form.Item name="project_name" label="关联项目名称">
-            <Input placeholder="可选" />
-          </Form.Item>
-          <Form.Item name="project_id" label="关联项目 ID">
-            <Input placeholder="可选" />
-          </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="project_name" label="关联项目名称">
+                <Input placeholder="可选" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="project_id" label="关联项目 ID">
+                <Input placeholder="可选" />
+              </Form.Item>
+            </Col>
+          </Row>
         </Form>
       </Modal>
     </div>
