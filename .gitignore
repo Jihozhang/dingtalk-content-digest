@@ -39,3 +39,6 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# ==== 运营素材（公众号文章等，不纳入代码仓库）====
+deliverables/
